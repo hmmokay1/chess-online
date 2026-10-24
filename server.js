@@ -2,7 +2,6 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const { Chess } = require('chess.js');
-const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const server = http.createServer(app);
@@ -60,7 +59,8 @@ function broadcast(roomId) {
 
 io.on('connection', (socket) => {
   socket.on('create_room', ({ name } = {}) => {
-    const roomId = uuidv4().slice(0, 8);
+    let roomId;
+    do { roomId = String(Math.floor(1000 + Math.random() * 9000)); } while (rooms[roomId]);
     rooms[roomId] = {
       chess: new Chess(),
       players: [socket.id],

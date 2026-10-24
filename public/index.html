@@ -194,7 +194,7 @@
     <button class="btn btn-green" id="create">Play a Friend</button>
     <div class="or">or join a game</div>
     <div class="row">
-      <input class="input" id="code" placeholder="Game code" maxlength="8" autocomplete="off">
+      <input class="input" id="code" placeholder="4-digit code" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
       <button class="btn btn-grey" id="join">Join</button>
     </div>
     <div class="err" id="err"></div>
@@ -204,7 +204,9 @@
     <div class="logo"><span>♞</span> Chess</div>
     <div class="spinner"></div>
     <div style="font-weight:700">Waiting for your opponent…</div>
-    <div class="sub" style="margin:0">Send them this link to start the game:</div>
+    <div class="sub" style="margin:0">Tell them this code:</div>
+    <div id="big-code" style="font-size:3rem;font-weight:800;letter-spacing:10px;color:var(--green)"></div>
+    <div class="sub" style="margin:0">or send this link:</div>
     <div id="invite-link"></div>
     <button class="btn btn-green" id="copy">Copy Link</button>
   </div>
@@ -344,6 +346,7 @@
 
     socket.on('room_created', ({ roomId }) => {
       const link = `${location.origin}/?room=${roomId}`;
+      $('big-code').textContent = roomId;
       $('invite-link').textContent = link;
       $('lobby').style.display = 'none';
       $('waiting').style.display = 'flex';
