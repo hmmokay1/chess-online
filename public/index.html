@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chess Online</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #1a1a2e;
+    color: #eee;
+    font-family: 'Segoe UI', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  h1 { font-size: 1.8rem; color: #e2b96f; letter-spacing: 2px; }
+
+  /* ── Lobby ── */
+  #lobby {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    background: #16213e;
+    padding: 32px 40px;
+    border-radius: 12px;
+    border: 1px solid #2a2a5a;
+  }
+  #lobby input {
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid #444;
+    background: #0f3460;
+    color: #eee;
+    font-size: 1rem;
+    width: 220px;
+    text-align: center;
+    letter-spacing: 2px;
+  }
+  #lobby input::placeholder { color: #888; letter-spacing: 0; }
+  .btn {
+    padding: 10px 28px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: opacity 0.15s;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn-primary { background: #e2b96f; color: #1a1a2e; }
+  .btn-secondary { background: #0f3460; color: #eee; border: 1px solid #444; }
+  .separator { color: #555; font-size: 0.9rem; }
+  #error-msg { color: #f88; font-size: 0.9rem; min-height: 1.2em; }
+
+  /* ── Waiting ── */
+  #waiting {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    background: #16213e;
+    padding: 32px 40px;
+    border-radius: 12px;
+    border: 1px solid #2a2a5a;
+    text-align: center;
+  }
+  #invite-link {
+    background: #0f3460;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    word-break: break-all;
+    color: #e2b96f;
+    max-width: 320px;
+  }
+
+  /* ── Game ── */
+  #game { display: none; flex-direction: column; align-items: center; gap: 12px; }
+
+  #status-bar {
+    font-size: 1rem;
+    color: #e2b96f;
+    font-weight: 600;
+    letter-spacing: 1px;
+    min-height: 1.5em;
+    text-align: center;
+  }
+
+  /* Captured pieces display */
+  .captured-row {
+    font-size: 1.3rem;
+    min-height: 1.8em;
+    letter-spacing: 2px;
+    color: #ccc;
+  }
+
+  /* Board wrapper — controls flip */
+  #board-wrap {
+    position: relative;
+  }
+
+  /* Promotion modal */
+  #promo-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  #promo-modal.show { display: flex; }
+  #promo-box {
+    background: #16213e;
+    border: 2px solid #e2b96f;
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  #promo-box p { color: #e2b96f; font-weight: 600; }
+  #promo-pieces { display: flex; gap: 8px; }
+  .promo-btn {
+    width: 64px; height: 64px;
+    font-size: 2.6rem;
+    background: #0f3460;
+    border: 2px solid #444;
+    border-radius: 8px;
+    cursor: pointer;
+    line-height: 64px;
+    text-align: center;
+    transition: border-color 0.15s;
+  }
+  .promo-btn:hover { border-color: #e2b96f; }
+
+  /* Game over overlay */
+  #gameover-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  #gameover-modal.show { display: flex; }
+  #gameover-box {
+    background: #16213e;
+    border: 2px solid #e2b96f;
+    border-radius: 12px;
+    padding: 32px 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+  }
+  #gameover-title { font-size: 1.6rem; color: #e2b96f; font-weight: 700; }
+  #gameover-subtitle { color: #ccc; font-size: 1rem; }
+
+  /* ── Board ── */
+  #board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    width: min(560px, 95vw);
+    height: min(560px, 95vw);
+    border: 3px solid #e2b96f;
+    border-radius: 4px;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .sq {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: clamp(1.8rem, 6vw, 2.8rem);
+    transition: background 0.1s;
+  }
+  .sq.light { background: #f0d9b5; }
+  .sq.dark  { background: #b58863; }
+  .sq.selected    { background: #7fc97f !important; }
+  .sq.last-move   { background: #cdd46a !important; }
+  .sq.legal-move::after {
+    content: '';
+    position: absolute;
+    width: 32%;
+    height: 32%;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.22);
+    pointer-events: none;
+  }
+  .sq.legal-capture::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 0;
+    background: transparent;
+    border: 4px solid rgba(0,0,0,0.22);
+    pointer-events: none;
+  }
+  .sq.in-check { background: #e06060 !important; }
+
+  /* Rank/file labels */
+  .sq .label {
+    position: absolute;
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 1;
+    color: rgba(0,0,0,0.4);
+    pointer-events: none;
+  }
+  .sq.light .label { color: rgba(181,136,99,0.9); }
+  .sq.dark  .label { color: rgba(240,217,181,0.9); }
+  .label.rank { top: 2px; left: 3px; }
+  .label.file { bottom: 2px; right: 3px; }
+
+  /* Move list */
+  #move-list-wrap {
+    width: min(560px, 95vw);
+    max-height: 120px;
+    overflow-y: auto;
+    background: #16213e;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    color: #ccc;
+    line-height: 1.8;
+  }
+  #move-list span { margin-right: 6px; }
+  #move-list .move-num { color: #888; }
+  #move-list .move-san { cursor: default; }
+</style>
+</head>
+<body>
+
+<h1>♟ Chess Online</h1>
+
+<!-- Lobby -->
+<div id="lobby">
+  <button class="btn btn-primary" onclick="createRoom()">Create Game</button>
+  <div class="separator">— or join with a code —</div>
+  <input id="room-input" placeholder="Enter room code" maxlength="8" />
+  <button class="btn btn-secondary" onclick="joinRoom()">Join Game</button>
+  <div id="error-msg"></div>
+</div>
+
+<!-- Waiting for opponent -->
+<div id="waiting">
+  <p>Waiting for opponent…</p>
+  <p style="color:#aaa;font-size:.9rem">Share this link:</p>
+  <div id="invite-link"></div>
+  <button class="btn btn-secondary" onclick="copyLink()">Copy Link</button>
+</div>
+
+<!-- Game -->
+<div id="game">
+  <div id="status-bar">Connecting…</div>
+  <div class="captured-row" id="cap-top"></div>
+  <div id="board-wrap">
+    <div id="board"></div>
+  </div>
+  <div class="captured-row" id="cap-bottom"></div>
+  <div id="move-list-wrap"><div id="move-list"></div></div>
+</div>
+
+<!-- Promotion picker -->
+<div id="promo-modal">
+  <div id="promo-box">
+    <p>Promote pawn to:</p>
+    <div id="promo-pieces"></div>
+  </div>
+</div>
+
+<!-- Game over -->
+<div id="gameover-modal">
+  <div id="gameover-box">
+    <div id="gameover-title"></div>
+    <div id="gameover-subtitle"></div>
+    <button class="btn btn-primary" onclick="requestRematch()">Rematch</button>
+    <button class="btn btn-secondary" onclick="location.reload()">New Game</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+// ── Piece rendering ──────────────────────────────────────────────────────────
+const PIECES = {
+  wK:'♔', wQ:'♕', wR:'♖', wB:'♗', wN:'♘', wP:'♙',
+  bK:'♚', bQ:'♛', bR:'♜', bB:'♝', bN:'♞', bP:'♟',
+};
+
+// ── State ────────────────────────────────────────────────────────────────────
+let socket, myColor = null, flipped = false;
+let fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+let selected = null, legalTargets = [];
+let lastMove = null;
+let pendingPromo = null;
+let moveHistory = [];
+let capturedByWhite = [], capturedByBlack = [];
+
+// ── Socket ───────────────────────────────────────────────────────────────────
+function initSocket() {
+  socket = io();
+
+  socket.on('room_created', ({ roomId, color }) => {
+    myColor = color;
+    flipped = color === 'b';
+    showWaiting(roomId);
+  });
+
+  socket.on('game_start', ({ color, fen: startFen }) => {
+    myColor = color;
+    flipped = color === 'b';
+    fen = startFen;
+    moveHistory = [];
+    capturedByWhite = [];
+    capturedByBlack = [];
+    showGame();
+    renderAll();
+  });
+
+  socket.on('game_update', (state) => {
+    fen = state.fen;
+    lastMove = state.lastMove;
+    updateCaptures(state);
+    renderAll();
+    updateStatus(state);
+    if (state.isGameOver) showGameOver(state);
+  });
+
+  socket.on('invalid_move', () => {
+    selected = null; legalTargets = [];
+    renderBoard();
+  });
+
+  socket.on('opponent_left', () => {
+    document.getElementById('status-bar').textContent = 'Opponent disconnected.';
+  });
+
+  socket.on('error', (msg) => {
+    document.getElementById('error-msg').textContent = msg;
+  });
+}
+
+// ── Lobby ────────────────────────────────────────────────────────────────────
+function createRoom() {
+  initSocket();
+  socket.emit('create_room');
+}
+
+function joinRoom() {
+  const code = document.getElementById('room-input').value.trim().toLowerCase();
+  if (!code) return;
+  initSocket();
+  socket.emit('join_room', { roomId: code });
+}
+
+function showWaiting(roomId) {
+  document.getElementById('lobby').style.display = 'none';
+  const w = document.getElementById('waiting');
+  w.style.display = 'flex';
+  const link = `${location.origin}/?room=${roomId}`;
+  document.getElementById('invite-link').textContent = link;
+  window._inviteLink = link;
+}
+
+function copyLink() {
+  navigator.clipboard.writeText(window._inviteLink);
+}
+
+function showGame() {
+  document.getElementById('lobby').style.display = 'none';
+  document.getElementById('waiting').style.display = 'none';
+  document.getElementById('game').style.display = 'flex';
+  buildBoard();
+}
+
+// Auto-join from URL
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(location.search);
+  const room = params.get('room');
+  if (room) {
+    document.getElementById('room-input').value = room;
+    joinRoom();
+  }
+});
+
+// ── Board render ─────────────────────────────────────────────────────────────
+function buildBoard() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  for (let r = 0; r < 8; r++) {
+    for (let f = 0; f < 8; f++) {
+      const sq = document.createElement('div');
+      sq.className = 'sq';
+      sq.dataset.r = r;
+      sq.dataset.f = f;
+      sq.addEventListener('click', onSquareClick);
+      board.appendChild(sq);
+    }
+  }
+}
+
+function fenToBoard(fenStr) {
+  // Returns 8x8 array [rank8..rank1][file a..h] of piece codes like 'wK' or null
+  const grid = [];
+  const rows = fenStr.split(' ')[0].split('/');
+  for (const row of rows) {
+    const rank = [];
+    for (const ch of row) {
+      if (/\d/.test(ch)) { for (let i = 0; i < +ch; i++) rank.push(null); }
+      else {
+        const color = ch === ch.toUpperCase() ? 'w' : 'b';
+        rank.push(color + ch.toUpperCase());
+      }
+    }
+    grid.push(rank);
+  }
+  return grid; // grid[0] = rank 8, grid[7] = rank 1
+}
+
+function squareToCoords(sq) {
+  // 'e4' → { r: 4 (rank8=0), f: 4 }
+  const f = sq.charCodeAt(0) - 97; // a=0
+  const r = 8 - parseInt(sq[1]);
+  return { r, f };
+}
+
+function coordsToSquare(r, f) {
+  return String.fromCharCode(97 + f) + (8 - r);
+}
+
+function getDisplayCoords(r, f) {
+  // If flipped, flip both axes
+  return flipped ? { dr: 7 - r, df: 7 - f } : { dr: r, df: f };
+}
+
+function renderBoard() {
+  const board = document.getElementById('board');
+  const squares = board.querySelectorAll('.sq');
+  const grid = fenToBoard(fen);
+  const turn = fen.split(' ')[1];
+
+  // Find king in check
+  let checkKingSquare = null;
+  if (isInCheck(fen)) {
+    checkKingSquare = findKing(grid, turn);
+  }
+
+  squares.forEach(sq => {
+    const dr = +sq.dataset.r;
+    const df = +sq.dataset.f;
+    // Map display row/col back to board row/col
+    const r = flipped ? 7 - dr : dr;
+    const f = flipped ? 7 - df : df;
+    const algSq = coordsToSquare(r, f);
+
+    const light = (r + f) % 2 === 0;
+    sq.className = 'sq ' + (light ? 'light' : 'dark');
+
+    // Last move highlight
+    if (lastMove && (algSq === lastMove.from || algSq === lastMove.to)) {
+      sq.classList.add('last-move');
+    }
+    // Selected
+    if (selected === algSq) sq.classList.add('selected');
+    // Legal targets
+    if (legalTargets.includes(algSq)) {
+      const piece = grid[r][f];
+      sq.classList.add(piece ? 'legal-capture' : 'legal-move');
+    }
+    // Check
+    if (checkKingSquare && algSq === checkKingSquare) sq.classList.add('in-check');
+
+    // Labels
+    sq.innerHTML = '';
+    // Rank label on left edge
+    if (df === (flipped ? 7 : 0)) {
+      const lbl = document.createElement('span');
+      lbl.className = 'label rank';
+      lbl.textContent = 8 - r;
+      sq.appendChild(lbl);
+    }
+    // File label on bottom edge
+    if (dr === (flipped ? 0 : 7)) {
+      const lbl = document.createElement('span');
+      lbl.className = 'label file';
+      lbl.textContent = String.fromCharCode(97 + f);
+      sq.appendChild(lbl);
+    }
+
+    // Piece
+    const piece = grid[r][f];
+    if (piece) {
+      const span = document.createElement('span');
+      span.textContent = PIECES[piece];
+      span.style.filter = piece[0] === 'w'
+        ? 'drop-shadow(0 1px 1px rgba(0,0,0,0.6))'
+        : 'drop-shadow(0 1px 1px rgba(255,255,255,0.15))';
+      sq.appendChild(span);
+    }
+    sq.dataset.alg = algSq;
+  });
+}
+
+function isInCheck(fenStr) {
+  // Simple: look for + in last move result — server sends inCheck separately
+  // We'll handle via state; just return false here as a fallback
+  return false;
+}
+
+function findKing(grid, color) {
+  const king = color === 'w' ? 'wK' : 'bK';
+  for (let r = 0; r < 8; r++)
+    for (let f = 0; f < 8; f++)
+      if (grid[r][f] === king) return coordsToSquare(r, f);
+  return null;
+}
+
+// ── Click handling ────────────────────────────────────────────────────────────
+function onSquareClick(e) {
+  const algSq = e.currentTarget.dataset.alg;
+  const turn = fen.split(' ')[1];
+  if (turn !== myColor) return;
+
+  const grid = fenToBoard(fen);
+  const { r, f } = squareToCoords(algSq);
+  const piece = grid[r][f];
+
+  if (selected) {
+    if (legalTargets.includes(algSq)) {
+      // Check pawn promotion
+      const movingPiece = fenToBoard(fen);
+      const { r: sr, f: sf } = squareToCoords(selected);
+      const movingCode = movingPiece[sr][sf];
+      const isPawn = movingCode && movingCode[1] === 'P';
+      const promotionRank = myColor === 'w' ? '8' : '1';
+      if (isPawn && algSq[1] === promotionRank) {
+        pendingPromo = { from: selected, to: algSq };
+        showPromoModal();
+        return;
+      }
+      sendMove(selected, algSq);
+    } else if (piece && piece[0] === myColor) {
+      selected = algSq;
+      legalTargets = getLegalTargets(algSq);
+    } else {
+      selected = null;
+      legalTargets = [];
+    }
+  } else {
+    if (piece && piece[0] === myColor) {
+      selected = algSq;
+      legalTargets = getLegalTargets(algSq);
+    }
+  }
+  renderBoard();
+}
+
+// Client-side legal move approximation (server validates; this is just for UI dots)
+// We use a simplified approach: pseudo-legal moves from FEN
+function getLegalTargets(sq) {
+  const grid = fenToBoard(fen);
+  const { r, f } = squareToCoords(sq);
+  const piece = grid[r][f];
+  if (!piece) return [];
+  const color = piece[0];
+  const type = piece[1];
+  const targets = [];
+  const enPassant = fen.split(' ')[3]; // e.g. 'e3' or '-'
+
+  const addIfValid = (tr, tf) => {
+    if (tr < 0 || tr > 7 || tf < 0 || tf > 7) return false;
+    const t = grid[tr][tf];
+    if (t && t[0] === color) return false;
+    targets.push(coordsToSquare(tr, tf));
+    return !t; // returns true if empty (for sliding pieces)
+  };
+
+  const slide = (dr, df) => {
+    let tr = r + dr, tf = f + df;
+    while (tr >= 0 && tr < 8 && tf >= 0 && tf < 8) {
+      const t = grid[tr][tf];
+      if (t && t[0] === color) break;
+      targets.push(coordsToSquare(tr, tf));
+      if (t) break;
+      tr += dr; tf += df;
+    }
+  };
+
+  if (type === 'P') {
+    const dir = color === 'w' ? -1 : 1;
+    const startRank = color === 'w' ? 6 : 1;
+    // Forward
+    if (!grid[r+dir]?.[f]) {
+      targets.push(coordsToSquare(r+dir, f));
+      if (r === startRank && !grid[r+2*dir]?.[f])
+        targets.push(coordsToSquare(r+2*dir, f));
+    }
+    // Captures
+    for (const df2 of [-1, 1]) {
+      const tf2 = f + df2, tr2 = r + dir;
+      if (tf2 >= 0 && tf2 < 8 && tr2 >= 0 && tr2 < 8) {
+        const t = grid[tr2][tf2];
+        if (t && t[0] !== color) targets.push(coordsToSquare(tr2, tf2));
+        // En passant
+        if (enPassant !== '-' && coordsToSquare(tr2, tf2) === enPassant)
+          targets.push(enPassant);
+      }
+    }
+  } else if (type === 'N') {
+    for (const [dr, df2] of [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]])
+      addIfValid(r+dr, f+df2);
+  } else if (type === 'B') {
+    for (const [dr, df2] of [[-1,-1],[-1,1],[1,-1],[1,1]]) slide(dr, df2);
+  } else if (type === 'R') {
+    for (const [dr, df2] of [[-1,0],[1,0],[0,-1],[0,1]]) slide(dr, df2);
+  } else if (type === 'Q') {
+    for (const d of [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]) slide(...d);
+  } else if (type === 'K') {
+    for (const [dr, df2] of [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]])
+      addIfValid(r+dr, f+df2);
+    // Castling hints (server validates)
+    const castling = fen.split(' ')[2];
+    if (color === 'w' && r === 7 && f === 4) {
+      if (castling.includes('K') && !grid[7][5] && !grid[7][6]) targets.push('g1');
+      if (castling.includes('Q') && !grid[7][3] && !grid[7][2] && !grid[7][1]) targets.push('c1');
+    }
+    if (color === 'b' && r === 0 && f === 4) {
+      if (castling.includes('k') && !grid[0][5] && !grid[0][6]) targets.push('g8');
+      if (castling.includes('q') && !grid[0][3] && !grid[0][2] && !grid[0][1]) targets.push('c8');
+    }
+  }
+  return targets;
+}
+
+function sendMove(from, to, promotion) {
+  selected = null; legalTargets = [];
+  socket.emit('move', { from, to, promotion });
+  renderBoard();
+}
+
+// ── Promotion ─────────────────────────────────────────────────────────────────
+function showPromoModal() {
+  const modal = document.getElementById('promo-modal');
+  const box = document.getElementById('promo-pieces');
+  box.innerHTML = '';
+  const pieces = myColor === 'w'
+    ? [['q','♕'],['r','♖'],['b','♗'],['n','♘']]
+    : [['q','♛'],['r','♜'],['b','♝'],['n','♞']];
+  for (const [code, sym] of pieces) {
+    const btn = document.createElement('div');
+    btn.className = 'promo-btn';
+    btn.textContent = sym;
+    btn.onclick = () => {
+      modal.classList.remove('show');
+      sendMove(pendingPromo.from, pendingPromo.to, code);
+      pendingPromo = null;
+    };
+    box.appendChild(btn);
+  }
+  modal.classList.add('show');
+}
+
+// ── Status / game over ────────────────────────────────────────────────────────
+let inCheckSquare = null;
+
+function updateStatus(state) {
+  const bar = document.getElementById('status-bar');
+  if (state.isGameOver) return;
+  inCheckSquare = null;
+  if (state.inCheck) {
+    inCheckSquare = findKingFromFen(state.fen, state.turn);
+  }
+  const whose = state.turn === myColor ? 'Your turn' : "Opponent's turn";
+  bar.textContent = whose + (state.inCheck ? ' — CHECK!' : '');
+  updateMoveList(state);
+}
+
+function findKingFromFen(fenStr, turn) {
+  const grid = fenToBoard(fenStr);
+  return findKing(grid, turn);
+}
+
+function renderAll() {
+  renderBoard();
+  renderCaptures();
+}
+
+function showGameOver(state) {
+  const modal = document.getElementById('gameover-modal');
+  const title = document.getElementById('gameover-title');
+  const sub = document.getElementById('gameover-subtitle');
+  if (state.isCheckmate) {
+    const winner = state.turn === 'w' ? 'Black' : 'White';
+    const isMe = (state.turn !== myColor);
+    title.textContent = isMe ? '🏆 You Win!' : '😞 You Lose';
+    sub.textContent = `Checkmate — ${winner} wins`;
+  } else if (state.isStalemate) {
+    title.textContent = '🤝 Draw';
+    sub.textContent = 'Stalemate';
+  } else if (state.isDraw) {
+    title.textContent = '🤝 Draw';
+    sub.textContent = 'Draw by repetition or 50-move rule';
+  }
+  modal.classList.add('show');
+}
+
+function requestRematch() {
+  document.getElementById('gameover-modal').classList.remove('show');
+  socket.emit('rematch');
+}
+
+// ── Move history ──────────────────────────────────────────────────────────────
+function updateMoveList(state) {
+  // We track SAN from the server implicitly — but server doesn't send SAN.
+  // Instead, we'll just show from-to notation.
+  if (!lastMove) return;
+  const san = lastMove.from + lastMove.to;
+  moveHistory.push(san);
+  const list = document.getElementById('move-list');
+  list.innerHTML = '';
+  for (let i = 0; i < moveHistory.length; i += 2) {
+    const num = document.createElement('span');
+    num.className = 'move-num';
+    num.textContent = (i/2 + 1) + '.';
+    list.appendChild(num);
+    const w = document.createElement('span');
+    w.className = 'move-san';
+    w.textContent = moveHistory[i];
+    list.appendChild(w);
+    if (moveHistory[i+1]) {
+      const b = document.createElement('span');
+      b.className = 'move-san';
+      b.textContent = moveHistory[i+1];
+      list.appendChild(b);
+    }
+  }
+  document.getElementById('move-list-wrap').scrollTop = 999;
+}
+
+// ── Captured pieces ────────────────────────────────────────────────────────────
+const START_PIECES = { P:8, N:2, B:2, R:2, Q:1 };
+
+function updateCaptures(state) {
+  const grid = fenToBoard(state.fen);
+  const onBoard = { w:{}, b:{} };
+  for (const row of grid) for (const p of row) if (p) {
+    onBoard[p[0]][p[1]] = (onBoard[p[0]][p[1]] || 0) + 1;
+  }
+  capturedByBlack = []; // white pieces captured by black
+  capturedByWhite = []; // black pieces captured by white
+  for (const type of ['Q','R','B','N','P']) {
+    const wLost = START_PIECES[type] - (onBoard.w[type] || 0);
+    const bLost = START_PIECES[type] - (onBoard.b[type] || 0);
+    for (let i = 0; i < wLost; i++) capturedByBlack.push('w'+type);
+    for (let i = 0; i < bLost; i++) capturedByWhite.push('b'+type);
+  }
+}
+
+function renderCaptures() {
+  // top row = opponent's captured pieces (i.e. pieces you captured)
+  // bottom row = your captured pieces
+  const topPieces = myColor === 'w' ? capturedByWhite : capturedByBlack;
+  const botPieces = myColor === 'w' ? capturedByBlack : capturedByWhite;
+  document.getElementById('cap-top').textContent = topPieces.map(p => PIECES[p]).join('');
+  document.getElementById('cap-bottom').textContent = botPieces.map(p => PIECES[p]).join('');
+}
+</script>
+</body>
+</html>
